@@ -1,103 +1,181 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert,
+  Snackbar,
+} from '@mui/material';
+import MainLayout from '@/components/Layout/MainLayout';
+import RevenueChart from '@/components/Chart/RevenueChart';
+import RevenueTable from '@/components/Table/RevenueTable';
+import LoadingSpinner from '@/components/Common/LoadingSpinner';
+import ErrorDisplay from '@/components/Common/ErrorDisplay';
+import { getTSMCRevenueData } from '@/services/finmindApi';
+import { filterDataByTimeRange } from '@/utils/dataProcessor';
+import { MonthlyRevenue, TimeRangeOption } from '@/types/revenue.types';
+
+// 时间范围选项
+const timeRangeOptions: TimeRangeOption[] = [
+  { label: '最近12个月', value: '12', months: 12 },
+  { label: '最近18个月', value: '18', months: 18 },
+  { label: '最近24个月', value: '24', months: 24 },
+  { label: '最近36个月', value: '36', months: 36 },
+  { label: '全部数据', value: 'all', months: 0 },
+];
+
+export default function HomePage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [allData, setAllData] = useState<MonthlyRevenue[]>([]);
+  const [displayData, setDisplayData] = useState<MonthlyRevenue[]>([]);
+  const [selectedTimeRange, setSelectedTimeRange] = useState<string>('24');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  // 获取数据
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 获取台积电月营收数据
+      const data = await getTSMCRevenueData(48); // 获取更多数据供筛选
+      
+      if (data && data.length > 0) {
+        setAllData(data);
+        // 默认显示最近24个月数据
+        const filtered = filterDataByTimeRange(data, 24);
+        setDisplayData(filtered);
+        
+        setSnackbarOpen(true);
+      } else {
+        throw new Error('未获取到有效数据');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '获取数据失败';
+      setError(`数据加载失败: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 处理时间范围变更
+  const handleTimeRangeChange = (value: string) => {
+    setSelectedTimeRange(value);
+    
+    if (value === 'all') {
+      setDisplayData(allData);
+    } else {
+      const months = parseInt(value);
+      const filtered = filterDataByTimeRange(allData, months);
+      setDisplayData(filtered);
+    }
+  };
+
+  // 初始化数据加载
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <MainLayout>
+      <Box>
+        {/* 时间范围选择器 */}
+        <Box mb={3}>
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel>时间范围</InputLabel>
+            <Select
+              value={selectedTimeRange}
+              label="时间范围"
+              onChange={(e) => handleTimeRangeChange(e.target.value)}
+              disabled={loading}
+            >
+              {timeRangeOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+        {/* 错误显示 */}
+        {error && (
+          <Box mb={3}>
+            <ErrorDisplay 
+              error={error} 
+              onRetry={fetchData}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </Box>
+        )}
+
+        {/* 加载状态 */}
+        {loading && (
+          <Box mb={3}>
+            <LoadingSpinner 
+              message="正在获取台积电月营收数据..." 
+              size={50}
+            />
+          </Box>
+        )}
+
+        {/* 主要内容 */}
+        {!loading && !error && displayData.length > 0 && (
+          <Box>
+            {/* 图表区域 */}
+            <Box mb={3}>
+              <RevenueChart 
+                data={displayData}
+                title="台积电(2330) 月营收趋势分析"
+                height={450}
+              />
+            </Box>
+
+            {/* 数据表格区域 */}
+            <Box>
+              <RevenueTable 
+                data={displayData}
+                title="完整月营收数据表"
+                maxHeight={600}
+              />
+            </Box>
+          </Box>
+        )}
+
+        {/* 无数据提示 */}
+        {!loading && !error && displayData.length === 0 && allData.length === 0 && (
+          <Box 
+            display="flex" 
+            justifyContent="center" 
+            alignItems="center" 
+            minHeight="400px"
           >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+            <Alert severity="info">
+              暂无可显示的数据，请检查网络连接或稍后重试
+            </Alert>
+          </Box>
+        )}
+
+        {/* 成功提示 Snackbar */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={4000}
+          onClose={() => setSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          <Alert 
+            onClose={() => setSnackbarOpen(false)} 
+            severity="success" 
+            sx={{ width: '100%' }}
+          >
+            数据加载成功！显示 {displayData.length} 条月营收记录
+          </Alert>
+        </Snackbar>
+      </Box>
+    </MainLayout>
   );
 }
