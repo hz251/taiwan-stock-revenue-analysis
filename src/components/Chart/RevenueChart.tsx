@@ -1,12 +1,28 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   Box,
   Paper,
   Typography,
   useTheme,
+  CircularProgress,
 } from '@mui/material';
+import dynamic from 'next/dynamic';
+
+// 动态导入Chart.js相关组件，禁用SSR
+const Chart = dynamic(
+  () => import('react-chartjs-2').then((mod) => mod.Chart),
+  {
+    ssr: false,
+    loading: () => (
+      <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+        <CircularProgress />
+      </Box>
+    ),
+  }
+);
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -19,21 +35,8 @@ import {
   Legend,
   ChartOptions,
 } from 'chart.js';
-import { Chart } from 'react-chartjs-2';
 import { MonthlyRevenue } from '@/types/revenue.types';
 import { formatMonthLabel, formatRevenue } from '@/utils/dataProcessor';
-
-// 注册 Chart.js 组件
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
 
 interface RevenueChartProps {
   data: MonthlyRevenue[];
@@ -47,6 +50,22 @@ const RevenueChart: React.FC<RevenueChartProps> = ({
   title = '月营收趋势图',
 }) => {
   const theme = useTheme();
+  const [chartReady, setChartReady] = useState(false);
+
+  // 在客户端注册Chart.js组件
+  useEffect(() => {
+    ChartJS.register(
+      CategoryScale,
+      LinearScale,
+      PointElement,
+      LineElement,
+      BarElement,
+      Title,
+      Tooltip,
+      Legend
+    );
+    setChartReady(true);
+  }, []);
 
   // 处理图表数据
   const chartData = useMemo(() => {
@@ -203,6 +222,24 @@ const RevenueChart: React.FC<RevenueChartProps> = ({
       },
     },
   }), [theme]);
+
+  if (!chartReady) {
+    return (
+      <Paper elevation={2} sx={{ padding: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          {title}
+        </Typography>
+        <Box 
+          display="flex" 
+          alignItems="center" 
+          justifyContent="center" 
+          height={height}
+        >
+          <CircularProgress />
+        </Box>
+      </Paper>
+    );
+  }
 
   if (!data || data.length === 0) {
     return (
